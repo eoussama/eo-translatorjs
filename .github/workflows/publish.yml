@@ -1,0 +1,114 @@
+name: Publish
+
+# Runs when a GitHub release is published from a tag (e.g. v3.1.4).
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v7
+
+    - name: Setup PNPM
+      uses: pnpm/action-setup@v6
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version: 24
+        cache: pnpm
+
+    - name: Check Version
+      env:
+        TAG: ${{ github.event.release.tag_name }}
+      run: |
+        VERSION=$(node -p "require('./package.json').version")
+        if [ "${TAG#v}" != "$VERSION" ]; then
+          echo "::error::Release tag $TAG does not match package.json version $VERSION"
+          exit 1
+        fi
+
+    - name: Install Dependencies
+      run: pnpm install --frozen-lockfile
+
+    # prepack type checks, lints, tests and builds the package.
+    - name: Pack
+      run: pnpm pack --pack-destination "$RUNNER_TEMP/npm"
+
+    # GitHub Packages only accepts packages scoped to the repository owner, and doesn't
+    # support provenance, so the npm-specific publishConfig is dropped.
+    - name: Pack for GitHub Packages
+      run: |
+        node -e "const fs = require('node:fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); pkg.name = '@eoussama/eo-translatorjs'; delete pkg.publishConfig; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
+        pnpm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/github"
+
+    - name: Upload Tarballs
+      uses: actions/upload-artifact@v7
+      with:
+        name: tarballs
+        path: |
+          ${{ runner.temp }}/npm/*.tgz
+          ${{ runner.temp }}/github/*.tgz
+
+  # npm refuses to run inside the repository (devEngines requires pnpm), so the
+  # tarballs are published from outside it.
+  npm:
+    needs: package
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      # Required for npm trusted publishing (OIDC) and provenance attestations.
+      id-token: write
+
+    steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version: 24
+        registry-url: "https://registry.npmjs.org/"
+
+    # Trusted publishing needs npm >= 11.5.1.
+    - name: Update npm
+      run: npm install -g npm@latest
+
+    - name: Download Tarballs
+      uses: actions/download-artifact@v8
+      with:
+        name: tarballs
+
+    - name: Publish Package
+      run: npm publish ./npm/*.tgz --provenance --access public
+
+  github:
+    needs: package
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version: 24
+        registry-url: "https://npm.pkg.github.com/"
+        scope: "@eoussama"
+
+    - name: Download Tarballs
+      uses: actions/download-artifact@v8
+      with:
+        name: tarballs
+
+    - name: Publish Package
+      run: npm publish ./github/*.tgz --provenance=false
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
