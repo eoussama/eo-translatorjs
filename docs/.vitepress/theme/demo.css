@@ -22,8 +22,10 @@
 }
 
 .demo__control {
+  box-sizing: border-box;
+  height: 40px;
   min-width: 180px;
-  padding: 6px 10px;
+  padding: 0 10px;
   border: 1px solid var(--vp-c-divider);
   border-radius: 6px;
   background: var(--vp-c-bg);
@@ -32,7 +34,9 @@
 }
 
 .demo__button {
-  padding: 7px 16px;
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 16px;
   border-radius: 6px;
   background: var(--vp-c-brand-3);
   color: var(--vp-c-white);
