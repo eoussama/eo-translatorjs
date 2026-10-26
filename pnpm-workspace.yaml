@@ -1,0 +1,15 @@
+minimumReleaseAgeExcludePrune: true
+minimumReleaseAgeExclude:
+  - vitepress@2.0.0-alpha.21
+
+trustPolicy: no-downgrade
+shellEmulator: true
+# Security fixes for transitive dependencies whose parents pin vulnerable
+# versions. Remove each entry once the parent releases a fixed range.
+overrides:
+  # @eoussama/dx -> @eslint/markdown -> micromark-extension-math pins katex@^0.16 (GHSA-238p-pmpm-9mq7).
+  micromark-extension-math>katex: ^0.19.1
+  # @stryker-mutator/core -> typed-rest-client@~2.3 pins qs@6.15.1 (GHSA-4mjr-xmp4-gh2g and others).
+  typed-rest-client>qs: ^6.16.1
+
+allowBuilds: {}
