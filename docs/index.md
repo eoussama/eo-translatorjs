@@ -35,6 +35,9 @@ features:
   - icon: 🛟
     title: Safe fallbacks
     details: Missing keys and languages fall back to the key itself or to a fallback you choose, never to an error.
+  - icon: 🌍
+    title: Browser and server
+    details: Translate strings in Node.js and pages in the browser with the same dictionary. DOM methods are safe no-ops where there is no document.
   - icon: 🔷
     title: TypeScript-first
     details: Written in TypeScript, with ESM and CommonJS builds, type declarations and browser bundles for a plain script tag.
