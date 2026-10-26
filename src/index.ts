@@ -18,6 +18,9 @@ class EOTranslator {
    * codes and whose values are plain objects mapping translation keys to
    * translated strings (or further nested objects for namespaced keys).
    *
+   * When the new dictionary lacks the active language, the language falls
+   * back to the default one, picked as in the constructor.
+   *
    * @param dict The new dictionary value
    * @throws {Error} When the value is not a valid plain object
    */
@@ -27,6 +30,10 @@ class EOTranslator {
     }
 
     this._dictionary = dict;
+
+    if (this._language !== undefined && !this.acceptsLanguage(this._language)) {
+      this._language = this.defaultLanguage();
+    }
   }
 
   /**
@@ -55,11 +62,7 @@ class EOTranslator {
       throw new TypeError(`[EOTranslatorJS] Invalid language key, expected "string" but received "${typeof lang}".`);
     }
 
-    if (
-      !Object.hasOwn(this.dictionary, lang)
-      && Object.keys(this.dictionary).length > 0
-      && lang.length > 0
-    ) {
+    if (!this.acceptsLanguage(lang)) {
       throw new Error(`[EOTranslatorJS] Invalid language key, "${lang}" does not exist in the dictionary.`);
     }
 
@@ -95,12 +98,14 @@ class EOTranslator {
    * Instantiates a translator object.
    *
    * @param dict The translation dictionary
-   * @param lang The default language key. Defaults to the document's `lang`
-   *   attribute when running in a browser, or `"en"`.
+   * @param lang The default language key. When omitted, the first of the
+   *   document's `lang` attribute (in a browser) and `"en"` that the dictionary
+   *   has is used, then the dictionary's first language. With an empty
+   *   dictionary, the document's `lang` attribute or `"en"` is used.
    *
    * @throws {Error} When the dictionary is not a valid plain object
    * @throws {TypeError} When the language is not a string
-   * @throws {Error} When the language key does not exist in the dictionary
+   * @throws {Error} When the language key does not exist in a non-empty dictionary
    */
   constructor(dict: EOTranslator.TDictionary, lang: string = "") {
     if (!dict || typeof dict !== "object" || Array.isArray(dict)) {
@@ -111,17 +116,47 @@ class EOTranslator {
       throw new TypeError(`[EOTranslatorJS] Invalid language key, expected "string" but received "${typeof lang}".`);
     }
 
-    if (!Object.hasOwn(dict, lang) && lang.length > 0) {
+    if (!Object.hasOwn(dict, lang) && Object.keys(dict).length > 0 && lang.length > 0) {
       throw new Error(`[EOTranslatorJS] Invalid language key, "${lang}" does not exist in the passed dictionary.`);
     }
 
     this.dictionary = dict;
-    this.language = lang || (typeof document === "object" ? document.documentElement.lang : "") || "en";
+    this.language = lang || this.defaultLanguage();
   }
 
   // #endregion
 
   // #region Methods
+
+  /**
+   * @description
+   * Checks whether a language can be active: the empty language, any language
+   * of an empty dictionary, or a language of the dictionary.
+   *
+   * @param lang The language key to check
+   * @returns `true` when the language can be active
+   */
+  private acceptsLanguage(lang: string): boolean {
+    return lang.length === 0 || this.languages.length === 0 || this.isValidLanguage(lang);
+  }
+
+  /**
+   * @description
+   * Picks the language to use when none is passed to the constructor.
+   *
+   * @returns The document's `lang` attribute or `"en"`, whichever the
+   *   dictionary has first, then the dictionary's first language
+   */
+  private defaultLanguage(): string {
+    const documentLang = typeof document === "object" ? document.documentElement.lang : "";
+    const [first] = this.languages;
+
+    if (first === undefined) {
+      return documentLang || "en";
+    }
+
+    return [documentLang, "en"].find(candidate => this.isValidLanguage(candidate)) ?? first;
+  }
 
   /**
    * @description
@@ -134,28 +169,19 @@ class EOTranslator {
    * @param input The translation key (supports dot notation)
    * @param options Translation options
    * @returns The translated string, or the fallback value
+   * @throws {TypeError} When the key is not a string
    */
   translate(input: string = "", options: EOTranslator.TTranslateOptions = {}): string {
+    assertString(input, "translation key");
+
     const language = options.lang || this.language;
     const fallback = options.fallback !== undefined ? options.fallback : input;
     const params = options.params || {};
     const frags = input.split(".").filter(frag => frag.length > 0);
+    const entries = ownValue(this.dictionary, language);
+    const output = frags.length > 1 ? frags.reduce(ownValue, entries) : ownValue(entries, input);
 
-    if (!this.isValidLanguage(language)) {
-      return fallback;
-    }
-
-    const entries = this.dictionary[language] as EOTranslator.TTranslationNode;
-    let output: unknown;
-
-    if (frags.length > 1) {
-      output = extractValue(entries, frags);
-    }
-    else {
-      output = Object.hasOwn(entries, input) ? entries[input] : undefined;
-    }
-
-    return output != null && output !== false && output !== ""
+    return isTranslation(output)
       ? assignParams(String(output), params)
       : fallback;
   }
@@ -169,7 +195,7 @@ class EOTranslator {
    *
    * | Attribute | Description |
    * |---|---|
-   * | `eo-translator` | _(required)_ The translation key |
+   * | `eo-translator` | _(required)_ The translation key. When empty, the element's content is used and stored here |
    * | `eo-translator-fallback` | Fallback text when the key is not found |
    * | `eo-translator-params` | JSON object of interpolation parameters |
    * | `eo-translator-html` | `"true"` to set `innerHTML` instead of `textContent` |
@@ -190,6 +216,11 @@ class EOTranslator {
 
     const language = lang || this.language;
     const input = keyAttr.value || DOMElement.textContent || DOMElement.innerHTML || "";
+
+    // The content is about to be replaced, so keep a key read from it for later translations.
+    if (keyAttr.value !== input) {
+      DOMElement.setAttribute("eo-translator", input);
+    }
     const fallbackAttr = DOMElement.attributes.getNamedItem("eo-translator-fallback");
     const fallback = fallbackAttr ? fallbackAttr.value : input;
     const paramsAttr = DOMElement.attributes.getNamedItem("eo-translator-params");
@@ -197,7 +228,9 @@ class EOTranslator {
 
     if (paramsAttr) {
       try {
-        params = JSON.parse(paramsAttr.value) || {};
+        const parsed: unknown = JSON.parse(paramsAttr.value);
+
+        params = isNode(parsed) ? parsed : {};
       }
       catch {
         params = {};
@@ -216,7 +249,8 @@ class EOTranslator {
 
   /**
    * @description
-   * Translates all `[eo-translator]` elements inside a container.
+   * Translates all `[eo-translator]` elements inside a container, and the
+   * container itself when it carries the attribute.
    *
    * When no container is provided, the entire `document` is used (browser only).
    *
@@ -231,9 +265,12 @@ class EOTranslator {
       return;
     }
 
-    const elements = container.querySelectorAll("[eo-translator]");
+    container.querySelectorAll("[eo-translator]").forEach(element => this.translateElement(element, language));
 
-    elements.forEach(element => this.translateElement(element, language));
+    // Last, as translating it replaces the content its marked descendants were translated into.
+    if (isElement(container) && container.hasAttribute("eo-translator")) {
+      this.translateElement(container, language);
+    }
   }
 
   /**
@@ -247,8 +284,12 @@ class EOTranslator {
    * @param lang The language key to add the translation to
    * @param key The translation key (supports dot notation)
    * @param translation The translated string
+   * @throws {TypeError} When the language or the key is not a string
    */
   add(lang: string, key: string, translation: string): void {
+    assertString(lang, "language key");
+    assertString(key, "translation key");
+
     const frags = key.split(".").filter(frag => frag.length > 0);
     const last = frags.pop();
 
@@ -256,21 +297,13 @@ class EOTranslator {
       return;
     }
 
-    if (!this.isValidLanguage(lang)) {
-      this.dictionary[lang] = {};
-    }
-
-    let node = this.dictionary[lang] as EOTranslator.TTranslationNode;
+    let node = ownNode(this.dictionary, lang);
 
     for (const frag of frags) {
-      const child = node[frag];
-
-      node = child && typeof child === "object"
-        ? child as EOTranslator.TTranslationNode
-        : (node[frag] = {});
+      node = ownNode(node, frag);
     }
 
-    node[last] = translation;
+    setOwn(node, last, translation);
   }
 
   /**
@@ -282,18 +315,18 @@ class EOTranslator {
    *
    * @param lang The language key to remove the translation from
    * @param key The translation key to remove (supports dot notation)
+   * @throws {TypeError} When the language or the key is not a string
    */
   remove(lang: string, key: string): void {
+    assertString(lang, "language key");
+    assertString(key, "translation key");
+
     const frags = key.split(".").filter(frag => frag.length > 0);
     const last = frags.pop();
-    let node: unknown = this.isValidLanguage(lang) ? this.dictionary[lang] : undefined;
+    const node = frags.reduce(ownValue, ownValue(this.dictionary, lang));
 
-    for (const frag of frags) {
-      node = node && typeof node === "object" ? (node as EOTranslator.TTranslationNode)[frag] : undefined;
-    }
-
-    if (last !== undefined && node && typeof node === "object") {
-      delete (node as EOTranslator.TTranslationNode)[last];
+    if (last !== undefined && isNode(node) && Object.hasOwn(node, last)) {
+      delete node[last];
     }
   }
 
@@ -314,46 +347,127 @@ class EOTranslator {
 /**
  * @description
  * Replaces `{placeholder}` tokens in a string with values from a
- * parameters object. Placeholder names are escaped before being used in a
- * RegExp to avoid injection from special characters in key names.
+ * parameters object, in a single pass. Placeholder names are escaped before
+ * being used in a RegExp to avoid injection from special characters in key
+ * names, and values are inserted literally: a `$&` in a value is not a
+ * replacement pattern, and a `{placeholder}` in a value is not replaced.
  *
  * @param raw The template string containing `{placeholder}` tokens
  * @param params The interpolation values
  * @returns The string with all matching tokens replaced
  */
 function assignParams(raw: string, params: Record<string, unknown>): string {
-  return Object.keys(params).reduce((result, key) => {
-    const escapedKey = key.replace(/[$()*+.?[\\\]^{|}]/g, "\\$&");
-    const pattern = new RegExp(`\\{${escapedKey}\\}`, "g");
+  const keys = Object.keys(params);
 
-    return result.replace(pattern, String(params[key]));
-  }, raw);
+  if (keys.length === 0) {
+    return raw;
+  }
+
+  const names = keys.map(key => key.replace(/[$()*+.?[\\\]^{|}]/g, "\\$&"));
+  const pattern = new RegExp(`\\{(${names.join("|")})\\}`, "g");
+
+  return raw.replace(pattern, (_, key: string) => String(params[key]));
 }
 
 /**
  * @description
- * Walks a nested translation node following a list of key fragments,
- * returning the value at the end of the path.
+ * Throws a `TypeError` naming the argument when a value is not a string.
  *
- * Unlike a truthiness check, this uses an explicit `null`/`undefined` guard
- * so that falsy-but-valid values (`0`, `false`, `""`) are preserved.
- *
- * @param entries The translations of the language to look up
- * @param frags The ordered list of nested key fragments
- * @returns The value at the resolved path, or `undefined`
+ * @param value The value to check
+ * @param name The argument's name in the error message
+ * @throws {TypeError} When the value is not a string
  */
-function extractValue(entries: EOTranslator.TTranslationNode, frags: string[]): unknown {
-  let node: unknown = entries;
+function assertString(value: unknown, name: string): asserts value is string {
+  if (typeof value !== "string") {
+    throw new TypeError(`[EOTranslatorJS] Invalid ${name}, expected "string" but received "${typeof value}".`);
+  }
+}
 
-  for (const frag of frags) {
-    if (node == null || typeof node !== "object") {
-      return undefined;
-    }
+/**
+ * @description
+ * Checks whether a container is an element, rather than a document or a fragment.
+ *
+ * @param node The container to check
+ * @returns `true` when the container is an element
+ */
+function isElement(node: ParentNode): node is Element {
+  return "hasAttribute" in node;
+}
 
-    node = (node as EOTranslator.TTranslationNode)[frag];
+/**
+ * @description
+ * Checks whether a value is a translation node: a non-null object.
+ *
+ * @param value The value to check
+ * @returns `true` when the value is a non-null object
+ */
+function isNode(value: unknown): value is EOTranslator.TTranslationNode {
+  return typeof value === "object" && value !== null;
+}
+
+/**
+ * @description
+ * Checks whether a value can be returned as a translation. Strings, numbers,
+ * bigints and `true` are; empty strings, `false`, nullish values, namespaces
+ * and functions are not.
+ *
+ * @param value The value to check
+ * @returns `true` when the value is a translation
+ */
+function isTranslation(value: unknown): value is string | number | bigint | true {
+  return (typeof value === "string" && value.length > 0)
+    || typeof value === "number"
+    || typeof value === "bigint"
+    || value === true;
+}
+
+/**
+ * @description
+ * Reads an own property of a translation node, ignoring inherited properties
+ * such as `constructor` or `__proto__`.
+ *
+ * @param node The node to read from
+ * @param key The property name
+ * @returns The property value, or `undefined` when the node is not an object or lacks the property
+ */
+function ownValue(node: unknown, key: string): unknown {
+  return isNode(node) && Object.hasOwn(node, key) ? node[key] : undefined;
+}
+
+/**
+ * @description
+ * Defines an own, enumerable property on a translation node. Unlike an
+ * assignment, this never invokes the `__proto__` setter.
+ *
+ * @param node The node to write to
+ * @param key The property name
+ * @param value The property value
+ */
+function setOwn(node: EOTranslator.TTranslationNode, key: string, value: unknown): void {
+  Object.defineProperty(node, key, { value, writable: true, enumerable: true, configurable: true });
+}
+
+/**
+ * @description
+ * Returns the child node of a translation node, replacing a missing or
+ * non-object child with a new empty node.
+ *
+ * @param node The parent node
+ * @param key The child's property name
+ * @returns The child node
+ */
+function ownNode(node: EOTranslator.TTranslationNode, key: string): EOTranslator.TTranslationNode {
+  const child = ownValue(node, key);
+
+  if (isNode(child)) {
+    return child;
   }
 
-  return node;
+  const created: EOTranslator.TTranslationNode = {};
+
+  setOwn(node, key, created);
+
+  return created;
 }
 
 // eslint-disable-next-line ts/no-namespace -- merges the public types with the class for `export =` CommonJS consumers

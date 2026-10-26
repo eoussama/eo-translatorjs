@@ -9,18 +9,19 @@ new EOTranslator(dictionary, language?)
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `dictionary` | `object` | ✅ | Plain object with language keys at the top level |
-| `language` | `string` | ✗ | Default language. Falls back to the document `lang` attribute, then `"en"` |
+| `language` | `string` | ✗ | Default language. When omitted, the first of the document `lang` attribute and `"en"` that the dictionary has, then the dictionary's first language |
 
 ```ts
 const translator = new EOTranslator(dict); // language defaults to "en"
 const french = new EOTranslator(dict, "fr"); // explicitly set to French
+const empty = new EOTranslator({}, "fr"); // any language while the dictionary is empty
 ```
 
 **Throws:**
 
 - `Error`: when the dictionary is not a plain object
 - `TypeError`: when the language argument is not a string
-- `Error`: when the language key does not exist in the dictionary
+- `Error`: when the language key does not exist in a non-empty dictionary
 
 ## Properties
 
@@ -35,7 +36,7 @@ translator.dictionary = {
 };
 ```
 
-Throws if the assigned value is not a plain object.
+Throws if the assigned value is not a plain object. When the new dictionary lacks the active language, the language falls back to the default one, picked as in the constructor.
 
 ### `language`
 

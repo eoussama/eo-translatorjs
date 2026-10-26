@@ -33,14 +33,28 @@ describe("constructor", () => {
     const translator = new EOTranslator({});
 
     expect(translator.dictionary).toEqual({});
+    expect(translator.language).toBe("en");
   });
 
   it("throws when the language key does not exist in the dictionary", () => {
     expect(() => new EOTranslator(DICT, "ar")).toThrow("[EOTranslatorJS] Invalid language key, \"ar\" does not exist in the passed dictionary.");
   });
 
-  it("throws when the language key does not exist in an empty dictionary", () => {
-    expect(() => new EOTranslator({}, "ar")).toThrow("[EOTranslatorJS] Invalid language key, \"ar\" does not exist in the passed dictionary.");
+  it("accepts any language with an empty dictionary, like the language setter", () => {
+    const translator = new EOTranslator({}, "ar");
+
+    translator.add("ar", "greeting", "مرحبا");
+
+    expect(translator.language).toBe("ar");
+    expect(translator.translate("greeting")).toBe("مرحبا");
+  });
+
+  it("defaults to the first language when the dictionary has no \"en\"", () => {
+    expect(new EOTranslator({ fr: { a: "b" }, es: { a: "c" } }).language).toBe("fr");
+  });
+
+  it("prefers \"en\" over the first language", () => {
+    expect(new EOTranslator({ fr: {}, en: {} }).language).toBe("en");
   });
 
   it.each([42, 0])("throws when the number %d is passed as the language", (lang) => {

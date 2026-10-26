@@ -8,9 +8,9 @@ Translates the content of a single DOM element. The element must carry the `eo-t
 
 | Attribute | Required | Description |
 |---|---|---|
-| `eo-translator` | ✅ | The translation key. When empty, the element's text is used as the key |
+| `eo-translator` | ✅ | The translation key. When empty, the element's text is used as the key and stored in the attribute, so the element can be translated again |
 | `eo-translator-fallback` | ✗ | Fallback text when the key is not found |
-| `eo-translator-params` | ✗ | JSON object of interpolation parameters. Invalid JSON is ignored |
+| `eo-translator-params` | ✗ | JSON object of interpolation parameters. Invalid JSON and JSON that is not an object are ignored |
 | `eo-translator-html` | ✗ | Set to `"true"` to write `innerHTML` instead of `textContent` |
 
 ```html
@@ -55,7 +55,7 @@ See the [translateElement demo](/demos/translate-element).
 
 ## `translateDOM(container?, lang?)`
 
-Translates **all** `[eo-translator]` elements within a container in one call.
+Translates **all** `[eo-translator]` elements within a container in one call, and the container itself when it carries the `eo-translator` attribute. Markup produced by an `eo-translator-html` translation is not translated again.
 
 When called without a container it scans the entire `document` (browser only, and a no-op on the server).
 

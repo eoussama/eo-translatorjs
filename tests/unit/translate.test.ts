@@ -80,11 +80,10 @@ describe("translate", () => {
       expect(translator.translate("greet", { lang: "toString" })).toBe("greet");
     });
 
-    it("is used when the active language is not in the dictionary", () => {
-      const translator = new EOTranslator({});
+    it("is used when the active language is empty", () => {
+      const translator = new EOTranslator({ en: { greet: "Hello!" } });
 
-      translator.language = "fr";
-      translator.dictionary = { en: { greet: "Hello!" } };
+      translator.language = "";
 
       expect(translator.translate("greet")).toBe("greet");
     });

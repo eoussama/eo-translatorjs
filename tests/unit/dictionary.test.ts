@@ -62,6 +62,20 @@ describe("add", () => {
     expect(translator.dictionary).toEqual({ en: { nested: { a: "..." }, empty: { a: ".." } } });
   });
 
+  it("creates entries that stay writable, enumerable and deletable", () => {
+    const dict: EOTranslator.TDictionary = {};
+    const translator = new EOTranslator(dict);
+
+    translator.add("en", "nav.home", "Home");
+
+    const en = dict.en as { nav: Record<string, unknown> };
+
+    en.nav.home = "House";
+    expect(translator.translate("nav.home", { lang: "en" })).toBe("House");
+    expect(Object.keys(dict)).toEqual(["en"]);
+    expect(delete en.nav.home).toBe(true);
+  });
+
   it("ignores empty key fragments", () => {
     const translator = new EOTranslator({ en: {} });
 

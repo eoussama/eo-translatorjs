@@ -11,6 +11,8 @@ Translates a key in the active (or specified) language.
 | `options.fallback` | `string` | Value to return when the key is not found. Defaults to the key itself |
 | `options.params` | `object` | Interpolation parameters replacing `{placeholder}` tokens |
 
+Throws a `TypeError` when the key is not a string.
+
 ```ts
 const dict = {
   en: {
@@ -48,9 +50,10 @@ The fallback is returned, without parameters applied, when:
 
 - the language does not exist in the dictionary
 - the key does not exist, or a nested key goes through something that is not an object
-- the translation is `null`, `undefined`, `false` or an empty string
+- the key names an inherited property, such as `constructor` or `toString`
+- the translation is `null`, `undefined`, `false`, an empty string, a namespace object, an array or a function
 
-Other values are converted to strings, so `0` translates to `"0"`.
+Numbers, bigints and `true` are converted to strings, so `0` translates to `"0"`.
 
 ## Nested keys
 
@@ -79,7 +82,7 @@ translator.translate("nav.missing"); // → "nav.missing" (fallback to key)
 
 ## Parameter interpolation
 
-Use `{placeholder}` tokens inside translations and supply values via `options.params` (or the `eo-translator-params` attribute in HTML). Every occurrence of a placeholder is replaced, and placeholder names are matched literally.
+Use `{placeholder}` tokens inside translations and supply values via `options.params` (or the `eo-translator-params` attribute in HTML). Every occurrence of a placeholder is replaced, placeholder names are matched literally, and values are inserted as they are: a `$&` or `$1` in a value is not a replacement pattern, and a `{placeholder}` in a value is not replaced.
 
 ```ts
 const dict = {

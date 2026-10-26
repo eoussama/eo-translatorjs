@@ -40,6 +40,24 @@ describe("constructor in a browser", () => {
     expect(new EOTranslator(DICT).language).toBe("en");
   });
 
+  it("falls back to the first language when the dictionary has neither the document language nor \"en\"", () => {
+    document.documentElement.lang = "de";
+
+    expect(new EOTranslator({ fr: {}, es: {} }).language).toBe("fr");
+  });
+
+  it.each(["de", "en-US"])("falls back to \"en\" when the dictionary lacks the document language %j", (lang) => {
+    document.documentElement.lang = lang;
+
+    expect(new EOTranslator(DICT).language).toBe("en");
+  });
+
+  it("uses the document language with an empty dictionary", () => {
+    document.documentElement.lang = "de";
+
+    expect(new EOTranslator({}).language).toBe("de");
+  });
+
   it("prefers the specified language over the document language", () => {
     document.documentElement.lang = "fr";
 
@@ -88,6 +106,43 @@ describe("translateElement", () => {
     expect(target.textContent).toBe("Hola!");
   });
 
+  it("keeps a key read from the content, so the element can switch languages", () => {
+    const target = render("<p id=\"target\" eo-translator>greeting</p>");
+    const translator = new EOTranslator(DICT, "en");
+
+    translator.translateElement(target);
+    expect(target.textContent).toBe("Hello!");
+    expect(target.getAttribute("eo-translator")).toBe("greeting");
+
+    translator.translateElement(target, "fr");
+    expect(target.textContent).toBe("Bonjour!");
+  });
+
+  it("keeps a key read from the content through translateDOM", () => {
+    const target = render("<p id=\"target\" eo-translator>greeting</p>");
+    const translator = new EOTranslator(DICT, "en");
+
+    translator.translateDOM(document.body);
+    translator.translateDOM(document.body, "es");
+
+    expect(target.textContent).toBe("Hola!");
+  });
+
+  it("does not rewrite an explicit key", () => {
+    const target = render("<p id=\"target\" eo-translator=\"greeting\">Ignored</p>");
+    let writes = 0;
+
+    new MutationObserver(records => writes += records.length).observe(target, { attributes: true });
+    new EOTranslator(DICT).translateElement(target);
+
+    return new Promise<void>((resolve) => {
+      setTimeout(() => {
+        expect(writes).toBe(0);
+        resolve();
+      });
+    });
+  });
+
   it("uses the inner HTML as the key when the element has no text", () => {
     const target = render("<p id=\"target\" eo-translator><br></p>");
 
@@ -115,12 +170,15 @@ describe("translateElement", () => {
   it.each([
     ["invalid JSON", "{name"],
     ["null", "null"],
+    ["string", "\"abc\""],
+    ["number", "42"],
+    ["boolean", "true"],
   ])("ignores %s parameters", (_, params) => {
     const target = render(`<p id="target" eo-translator="greeting" eo-translator-params='${params}'></p>`);
 
-    new EOTranslator({ en: { greeting: "Hello, {name}!" } }).translateElement(target);
+    new EOTranslator({ en: { greeting: "Hello, {name}! {0}" } }).translateElement(target);
 
-    expect(target.textContent).toBe("Hello, {name}!");
+    expect(target.textContent).toBe("Hello, {name}! {0}");
   });
 
   it("renders HTML when eo-translator-html is true", () => {
@@ -184,6 +242,30 @@ describe("translateDOM", () => {
     new EOTranslator(DICT, "br").translateDOM(document.body);
 
     expect(target.textContent).toBe("Jola!");
+  });
+
+  it("translates a container that carries the attribute itself", () => {
+    const target = render("<section id=\"target\" eo-translator=\"greeting\"><span eo-translator=\"greeting\"></span></section>");
+
+    new EOTranslator(DICT, "es").translateDOM(target);
+
+    expect(target.innerHTML).toBe("Hola!");
+  });
+
+  it("does not translate markers inside a container's own HTML translation", () => {
+    const target = render("<section id=\"target\" eo-translator=\"rich\" eo-translator-html=\"true\"></section>");
+
+    new EOTranslator({ en: { rich: "<b eo-translator=\"inner\">x</b>", inner: "Inner" } }, "en").translateDOM(target);
+
+    expect(target.innerHTML).toBe("<b eo-translator=\"inner\">x</b>");
+  });
+
+  it("translates a document fragment", () => {
+    const fragment = document.createRange().createContextualFragment("<span eo-translator=\"greeting\"></span>");
+
+    new EOTranslator(DICT, "fr").translateDOM(fragment);
+
+    expect(fragment.textContent).toBe("Bonjour!");
   });
 
   it.each([

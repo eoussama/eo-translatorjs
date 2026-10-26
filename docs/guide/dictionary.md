@@ -34,4 +34,4 @@ translator.remove("fr", "tr1");
 translator.remove("fr", "menu.about");
 ```
 
-Both methods edit the dictionary object you passed in place.
+Both methods throw a `TypeError` when the language or the key is not a string, and edit the dictionary object you passed in place. They only follow and change the dictionary's own entries, so keys such as `__proto__` or `constructor.prototype` are stored as regular translations and never reach `Object.prototype`.
