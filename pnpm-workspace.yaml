@@ -1,12 +1,15 @@
+minimumReleaseAgeExcludePrune: true
+minimumReleaseAgeExclude:
+  - vitepress@2.0.0-alpha.21
+
+trustPolicy: no-downgrade
+shellEmulator: true
+# Security fixes for transitive dependencies whose parents pin vulnerable
+# versions. Remove each entry once the parent releases a fixed range.
 overrides:
-  "@babel/helpers": ">=7.26.10"
-  "@babel/traverse": ">=7.23.2"
-  brace-expansion: ">=1.1.13"
-  cross-spawn: ">=7.0.5"
-  js-yaml: ">=3.14.2"
-  lodash: ">=4.17.24"
-  micromatch: ">=4.0.8"
-  minimatch: ">=3.1.4"
-  minimist: ">=0.2.4"
-  picomatch: ">=2.3.2"
-  semver: ">=5.7.2"
+  # @eoussama/dx -> @eslint/markdown -> micromark-extension-math pins katex@^0.16 (GHSA-238p-pmpm-9mq7).
+  micromark-extension-math>katex: ^0.19.1
+  # @stryker-mutator/core -> typed-rest-client@~2.3 pins qs@6.15.1 (GHSA-4mjr-xmp4-gh2g and others).
+  typed-rest-client>qs: ^6.16.1
+
+allowBuilds: {}

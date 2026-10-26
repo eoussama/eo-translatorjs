@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    // Type check the smoke tests' self-imports against the sources, so no build is needed
+    // first. At runtime Vitest ignores these paths and the smoke tests load the built dist.
+    "paths": {
+      "eo-translatorjs": ["./src/index.ts"]
+    },
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "strict": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "declaration": true,
+    "noEmit": true,
+    "isolatedDeclarations": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true
+  },
+  "include": ["src", "tests", "e2e/specs", "e2e/helpers", "*.config.ts"],
+  "exclude": ["node_modules", "dist", "reports", "coverage"]
+}

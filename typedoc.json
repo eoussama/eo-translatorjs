@@ -1,0 +1,41 @@
+{
+  "entryPoints": [
+    "src/index.ts"
+  ],
+  "tsconfig": "tsconfig.json",
+  "plugin": [
+    "typedoc-plugin-markdown",
+    "./docs/.vitepress/typedoc-default-name.js"
+  ],
+  "out": "docs/api",
+  "readme": "none",
+  "entryFileName": "index",
+  "excludeInternal": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "hideGenerator": true,
+  "sort": [
+    "source-order"
+  ],
+  "parametersFormat": "table",
+  "propertiesFormat": "table",
+  "typeDeclarationFormat": "table",
+  "sanitizeComments": false,
+  "useCodeBlocks": true,
+  "blockTags": [
+    "@param",
+    "@returns",
+    "@throws",
+    "@example",
+    "@remarks",
+    "@deprecated",
+    "@description",
+    "@defaultValue",
+    "@see",
+    "@since",
+    "@internal",
+    "@alpha",
+    "@beta",
+    "@experimental"
+  ]
+}
